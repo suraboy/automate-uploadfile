@@ -1,0 +1,29 @@
+{
+  "name": "ta-summary-automation",
+  "version": "1.0.0",
+  "description": "Automated PDF upload to TA Summary system",
+  "main": "index.js",
+  "scripts": {
+    "start": "node run.js",
+    "test": "node run.js --dry-run",
+    "dev": "node run.js --dry-run",
+    "test-flow": "node test-flow.js",
+    "test-sso": "node test-sso-login.js",
+    "test-nav": "node test-navigation-only.js",
+    "test-auth": "node test-auth-check.js",
+    "test-sso-tab": "node test-sso-tab.js",
+    "test-login": "node test-login-step-by-step.js",
+    "test-find-sso": "node test-find-sso-button.js",
+    "debug": "node debug-after-login.js",
+    "install-deps": "npm install"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "fs-extra": "^11.1.1",
+    "path": "^0.12.7",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}
