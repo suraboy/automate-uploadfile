@@ -72,6 +72,9 @@ class TASummaryPage {
     // Set Supplier Code
     await this.setSupplierCode(supplierCode);
     
+    // Set Status to TA Approved
+    await this.setStatus('TA Approved');
+    
     // Click Search
     await this.clickSearch();
     
@@ -218,6 +221,88 @@ class TASummaryPage {
     await supplierInput.clear();
     await supplierInput.fill(supplierCode);
     console.log('✅ Supplier code entered');
+  }
+
+  async setStatus(status) {
+    console.log(`📊 Setting Status to ${status}...`);
+    
+    // Look for Status dropdown/select field
+    const statusSelectors = [
+      // Dropdown selectors
+      'select:near(label:has-text("Status"))',
+      'select[id*="Status"]',
+      '.mx-name-searchField select',
+      // Input field selectors (if it's a text input)
+      'input[type="text"]:near(label:has-text("Status"))',
+      'input[id*="Status"]',
+      // Generic selectors
+      'select',
+      '.mx-grid-search-item select'
+    ];
+    
+    let statusField = null;
+    for (const selector of statusSelectors) {
+      try {
+        console.log(`   Trying status selector: ${selector}`);
+        const elements = this.page.locator(selector);
+        const count = await elements.count();
+        console.log(`   Found ${count} elements`);
+        
+        if (count > 0) {
+          // Check each element to find the Status field
+          for (let i = 0; i < count; i++) {
+            try {
+              const element = elements.nth(i);
+              const isVisible = await element.isVisible();
+              
+              if (isVisible) {
+                // Try to find associated label
+                const parentDiv = element.locator('xpath=../..'); // Go up 2 levels
+                const labelText = await parentDiv.locator('label').textContent().catch(() => '');
+                
+                console.log(`   Element ${i}: visible=${isVisible}, label="${labelText}"`);
+                
+                if (labelText && labelText.toLowerCase().includes('status')) {
+                  console.log(`✅ Found Status field with label: "${labelText}"`);
+                  statusField = element;
+                  break;
+                }
+              }
+            } catch (e) {
+              continue;
+            }
+          }
+          
+          if (statusField) break;
+        }
+      } catch (error) {
+        console.log(`   Error with ${selector}: ${error.message}`);
+        continue;
+      }
+    }
+    
+    if (!statusField) {
+      console.log('⚠️ Status field not found, continuing without status filter...');
+      return;
+    }
+    
+    try {
+      // Check if it's a select dropdown
+      const tagName = await statusField.evaluate(el => el.tagName);
+      
+      if (tagName === 'SELECT') {
+        // It's a dropdown - select the option
+        await statusField.selectOption({ label: status });
+        console.log(`✅ Status dropdown set to ${status}`);
+      } else {
+        // It's an input field - type the value
+        await statusField.clear();
+        await statusField.fill(status);
+        console.log(`✅ Status input set to ${status}`);
+      }
+    } catch (error) {
+      console.log(`⚠️ Could not set status: ${error.message}`);
+    }
   }
 
   async clickSearch() {

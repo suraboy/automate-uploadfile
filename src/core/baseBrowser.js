@@ -35,7 +35,7 @@ class BaseBrowser {
         // Force close browser quickly
         await Promise.race([
           this.browser.close(),
-          new Promise(resolve => setTimeout(resolve, 3000)) // Max 3 seconds
+          new Promise(resolve => setTimeout(resolve, 1000)) // Max 1 second
         ]);
         console.log('🧹 Browser closed successfully');
       }
