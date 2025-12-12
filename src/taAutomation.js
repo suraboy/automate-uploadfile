@@ -95,19 +95,90 @@ class TAAutomation extends BaseBrowser {
 
   async processFile(filePath, doneFolder, failFolder) {
     const fileName = path.basename(filePath);
-    const supplierCode = this.fileManager.getSupplierCodeFromFilename(fileName);
+    const supplierCodes = this.fileManager.getSupplierCodeFromFilename(fileName);
     
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`🔄 Processing: ${fileName} (Supplier: ${supplierCode})`);
-    console.log(`${'='.repeat(60)}`);
-    
+    // Handle multiple suppliers (comma-separated)
+    if (Array.isArray(supplierCodes)) {
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`🔄 Processing: ${fileName} (Multiple Suppliers: ${supplierCodes.join(', ')})`);
+      console.log(`${'='.repeat(60)}`);
+      
+      let allSuccessful = true;
+      const failedSuppliers = [];
+      
+      for (let i = 0; i < supplierCodes.length; i++) {
+        const supplierCode = supplierCodes[i];
+        console.log(`\n📋 Processing supplier ${i + 1}/${supplierCodes.length}: ${supplierCode}`);
+        
+        try {
+          const success = await this.processSupplier(filePath, supplierCode);
+          if (!success) {
+            allSuccessful = false;
+            failedSuppliers.push(supplierCode);
+          }
+        } catch (error) {
+          console.error(`❌ Error processing supplier ${supplierCode}:`, error.message);
+          allSuccessful = false;
+          failedSuppliers.push(supplierCode);
+          this.stats.errors.push(`${fileName} (${supplierCode}): ${error.message}`);
+        }
+      }
+      
+      // Move file based on overall result
+      if (allSuccessful) {
+        await this.fileManager.moveToProcessed(filePath, doneFolder);
+        console.log(`✅ Successfully uploaded ${fileName} to all suppliers: ${supplierCodes.join(', ')}`);
+        this.stats.success++;
+      } else {
+        await this.fileManager.moveToFailed(filePath, failFolder);
+        console.log(`❌ Failed to upload ${fileName} to some suppliers: ${failedSuppliers.join(', ')}`);
+        this.stats.failed++;
+      }
+      
+    } else {
+      // Single supplier (existing logic)
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`🔄 Processing: ${fileName} (Supplier: ${supplierCodes})`);
+      console.log(`${'='.repeat(60)}`);
+      
+      try {
+        const success = await this.processSupplier(filePath, supplierCodes);
+        
+        if (success) {
+          await this.fileManager.moveToProcessed(filePath, doneFolder);
+          console.log(`✅ Successfully uploaded ${fileName} to supplier ${supplierCodes}`);
+          this.stats.success++;
+        } else {
+          await this.fileManager.moveToFailed(filePath, failFolder);
+          this.stats.failed++;
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error processing ${fileName}:`, error.message);
+        this.stats.failed++;
+        this.stats.errors.push(`${fileName}: ${error.message}`);
+        
+        // Take screenshot for debugging
+        await this.takeScreenshot(`error_${supplierCodes}_${Date.now()}.png`);
+        
+        // Move failed file to fail folder
+        try {
+          await this.fileManager.moveToFailed(filePath, failFolder);
+        } catch (moveError) {
+          console.log(`⚠️ Could not move ${fileName} to fail folder: ${moveError.message}`);
+        }
+      }
+    }
+  }
+
+  async processSupplier(filePath, supplierCode) {
     try {
       // Ensure browser is alive
       if (this.page.isClosed()) {
         throw new Error('Browser page was closed unexpectedly');
       }
       
-      // Step 1: Navigate to main page and authenticate
+      // Step 1: Navigate to main page and authenticate (only if needed)
       await this.navigateAndAuthenticate();
       
       // Step 2: Navigate to TA Summary
@@ -115,7 +186,7 @@ class TAAutomation extends BaseBrowser {
       await navigation.navigateToTASummary();
       
       // Step 3: Filter and search for supplier
-      const taSummaryPage = new TASummaryPage(this.page);
+      const taSummaryPage = new TASummaryPage(this.page, this.config);
       await taSummaryPage.filterAndSearch(supplierCode);
       
       // Step 4: Find approved TA
@@ -123,14 +194,11 @@ class TAAutomation extends BaseBrowser {
       if (!approvedRow) {
         console.log(`⚠️ No data found for supplier ${supplierCode}`);
         this.stats.skipped++;
-        this.stats.errors.push(`${fileName}: No data found`);
-        
-        // Move to fail folder
-        await this.fileManager.moveToFailed(filePath, failFolder);
+        this.stats.errors.push(`${path.basename(filePath)} (${supplierCode}): No data found`);
         
         // Take screenshot for debugging
         await this.takeScreenshot(`no-data-${supplierCode}_${Date.now()}.png`);
-        return;
+        return false;
       }
       
       // Step 5: Select and edit
@@ -143,26 +211,16 @@ class TAAutomation extends BaseBrowser {
       // Step 7: Save changes
       await uploadPage.saveChanges();
       
-      // Step 8: Move file to done folder
-      await this.fileManager.moveToProcessed(filePath, doneFolder);
-      
-      console.log(`✅ Successfully uploaded ${fileName} to supplier ${supplierCode}`);
-      this.stats.success++;
+      console.log(`✅ Successfully uploaded to supplier ${supplierCode}`);
+      return true;
       
     } catch (error) {
-      console.error(`❌ Error processing ${fileName}:`, error.message);
-      this.stats.failed++;
-      this.stats.errors.push(`${fileName}: ${error.message}`);
+      console.error(`❌ Error processing supplier ${supplierCode}:`, error.message);
       
       // Take screenshot for debugging
       await this.takeScreenshot(`error_${supplierCode}_${Date.now()}.png`);
       
-      // Move failed file to fail folder
-      try {
-        await this.fileManager.moveToFailed(filePath, failFolder);
-      } catch (moveError) {
-        console.log(`⚠️ Could not move ${fileName} to fail folder: ${moveError.message}`);
-      }
+      throw error;
     }
   }
 

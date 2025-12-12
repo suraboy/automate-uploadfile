@@ -53,7 +53,7 @@ class FileManager {
       counter++;
     }
     
-    // await fs.move(filePath, finalPath);
+    await fs.move(filePath, finalPath);
     console.log(`📁 Moved ${fileName} to done folder`);
   }
 
@@ -71,12 +71,18 @@ class FileManager {
       counter++;
     }
     
-    // await fs.move(filePath, finalPath);
+    await fs.move(filePath, finalPath);
     console.log(`📁 Moved ${fileName} to fail folder`);
   }
 
   getSupplierCodeFromFilename(filename) {
-    return path.basename(filename, '.pdf');
+    const baseName = path.basename(filename, '.pdf');
+    // If filename contains comma, return array of supplier codes
+    if (baseName.includes(',')) {
+      return baseName.split(',').map(code => code.trim());
+    }
+    // Single supplier code
+    return baseName;
   }
 }
 

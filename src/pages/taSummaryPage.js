@@ -3,8 +3,9 @@
  * Handles filtering, searching, and finding approved TAs
  */
 class TASummaryPage {
-  constructor(page) {
+  constructor(page, config = null) {
     this.page = page;
+    this.config = config || require('../../config');
   }
 
   async filterAndSearch(supplierCode) {
@@ -66,14 +67,19 @@ class TASummaryPage {
       console.log('   Debug failed:', e.message);
     }
     
-    // Set TA Year
-    await this.setTAYear('2025');
+    // Set TA Year (from config)
+    await this.setTAYear(this.config.filters.taYear);
     
     // Set Supplier Code
     await this.setSupplierCode(supplierCode);
     
-    // Set Status to TA Approved
-    await this.setStatus('TA Approved');
+    // Set Status (from config)
+    await this.setStatus(this.config.filters.status);
+    
+    // Set additional filters if any
+    if (this.config.filters.additionalFilters.length > 0) {
+      await this.setAdditionalFilters(this.config.filters.additionalFilters);
+    }
     
     // Click Search
     await this.clickSearch();
@@ -302,6 +308,45 @@ class TASummaryPage {
       }
     } catch (error) {
       console.log(`⚠️ Could not set status: ${error.message}`);
+    }
+  }
+
+  async setAdditionalFilters(filters) {
+    console.log(`🔧 Setting additional filters: ${filters.join(', ')}`);
+    
+    for (const filter of filters) {
+      console.log(`   Setting filter: ${filter}`);
+      // This is a placeholder - you can implement specific filter logic here
+      // For example, if you have other dropdown fields or checkboxes
+      
+      // Example implementation for other fields:
+      try {
+        // Look for any input/select that might match this filter
+        const filterSelectors = [
+          `input[placeholder*="${filter}"]`,
+          `select option:has-text("${filter}")`,
+          `input[value="${filter}"]`,
+          `label:has-text("${filter}") + input`,
+          `label:has-text("${filter}") + select`
+        ];
+        
+        for (const selector of filterSelectors) {
+          const element = this.page.locator(selector);
+          if (await element.count() > 0) {
+            console.log(`   Found filter element: ${selector}`);
+            // Handle different element types
+            const tagName = await element.first().evaluate(el => el.tagName);
+            if (tagName === 'INPUT') {
+              await element.first().fill(filter);
+            } else if (tagName === 'SELECT') {
+              await element.first().selectOption({ label: filter });
+            }
+            break;
+          }
+        }
+      } catch (error) {
+        console.log(`   Could not set filter "${filter}": ${error.message}`);
+      }
     }
   }
 

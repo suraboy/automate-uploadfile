@@ -33,6 +33,14 @@ module.exports = {
     password: process.env.PASSWORD
   },
   
+  // Search Filter Configuration
+  filters: {
+    taYear: process.env.TA_YEAR || '2025',
+    status: process.env.STATUS_FILTER || 'TA Approved',
+    additionalFilters: process.env.ADDITIONAL_FILTERS ? 
+      process.env.ADDITIONAL_FILTERS.split(',').map(f => f.trim()) : []
+  },
+  
   // Selectors based on the actual ASP CMS interface
   selectors: {
     // Navigation
