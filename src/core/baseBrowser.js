@@ -1,18 +1,24 @@
 const { chromium } = require('playwright');
+const fs = require('fs-extra');
+const path = require('path');
 
 /**
  * Base Browser Management Class
- * Handles browser initialization, cleanup, and basic operations
+ * Handles browser initialization, cleanup, and basic operations with session management
  */
 class BaseBrowser {
   constructor(config) {
     this.config = config;
     this.browser = null;
     this.page = null;
+    this.sessionFile = path.join(__dirname, '../../.session/browser-session.json');
   }
 
   async init() {
     console.log('🚀 Initializing browser...');
+    
+    // Try to load existing session
+    const sessionData = await this.loadSession();
     
     this.browser = await chromium.launch({
       headless: this.config.browser.headless,
@@ -20,7 +26,18 @@ class BaseBrowser {
       args: ['--start-maximized']
     });
     
-    this.page = await this.browser.newPage();
+    // Create new context with session data if available
+    const contextOptions = {
+      viewport: null // Use full screen
+    };
+    
+    if (sessionData) {
+      console.log('🔄 Restoring browser session...');
+      contextOptions.storageState = sessionData;
+    }
+    
+    const context = await this.browser.newContext(contextOptions);
+    this.page = await context.newPage();
     this.page.setDefaultTimeout(this.config.browser.timeout);
     
     // Add error handling for page crashes
@@ -29,8 +46,51 @@ class BaseBrowser {
     });
   }
 
-  async cleanup() {
+  async loadSession() {
     try {
+      if (await fs.pathExists(this.sessionFile)) {
+        const sessionData = await fs.readJson(this.sessionFile);
+        console.log('📂 Found existing browser session');
+        return sessionData;
+      }
+    } catch (error) {
+      console.log('⚠️ Could not load session:', error.message);
+    }
+    return null;
+  }
+
+  async saveSession() {
+    try {
+      // Ensure session directory exists
+      await fs.ensureDir(path.dirname(this.sessionFile));
+      
+      // Save current session state
+      const sessionData = await this.page.context().storageState();
+      await fs.writeJson(this.sessionFile, sessionData);
+      console.log('💾 Browser session saved');
+    } catch (error) {
+      console.log('⚠️ Could not save session:', error.message);
+    }
+  }
+
+  async clearSession() {
+    try {
+      if (await fs.pathExists(this.sessionFile)) {
+        await fs.remove(this.sessionFile);
+        console.log('🗑️ Browser session cleared');
+      }
+    } catch (error) {
+      console.log('⚠️ Could not clear session:', error.message);
+    }
+  }
+
+  async cleanup(saveSession = true) {
+    try {
+      // Save session before closing if requested
+      if (saveSession && this.page && !this.page.isClosed()) {
+        await this.saveSession();
+      }
+      
       if (this.browser && this.browser.isConnected()) {
         // Force close browser quickly
         await Promise.race([

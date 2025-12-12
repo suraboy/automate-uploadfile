@@ -27,6 +27,12 @@ class TAAutomation extends BaseBrowser {
     const startTime = Date.now();
     
     try {
+      // Check for clear session flag
+      if (process.argv.includes('--clear-session')) {
+        console.log('🗑️ Clearing saved session...');
+        await this.clearSession();
+      }
+      
       await this.init();
       
       const pdfFiles = await this.fileManager.getPDFFiles();
@@ -233,14 +239,7 @@ class TAAutomation extends BaseBrowser {
         waitUntil: 'networkidle'
       });
       
-      // Handle authentication
-      const authPage = new AuthPage(this.page, this.config);
-      await authPage.handleAuthentication();
-      
-      // Ensure dashboard is loaded
-      await this.page.waitForTimeout(500);
-      
-      // Check if we're on the main page with menu
+      // Check if already logged in (from session)
       const dashboardIndicators = [
         'text=Trading Agreement',
         'text=TA',
@@ -251,15 +250,37 @@ class TAAutomation extends BaseBrowser {
       let onDashboard = false;
       for (const indicator of dashboardIndicators) {
         if (await this.page.locator(indicator).count() > 0) {
-          console.log(`✅ Dashboard loaded - found: ${indicator}`);
+          console.log(`✅ Already logged in from session - found: ${indicator}`);
           onDashboard = true;
           break;
         }
       }
       
+      // If not logged in, handle authentication
       if (!onDashboard) {
-        await this.takeScreenshot('dashboard-not-loaded.png');
-        throw new Error('Dashboard not loaded properly');
+        console.log('🔐 Session expired or not found, logging in...');
+        const authPage = new AuthPage(this.page, this.config);
+        await authPage.handleAuthentication();
+        
+        // Save session after successful login
+        await this.saveSession();
+        
+        // Ensure dashboard is loaded
+        await this.page.waitForTimeout(500);
+        
+        // Verify login success
+        for (const indicator of dashboardIndicators) {
+          if (await this.page.locator(indicator).count() > 0) {
+            console.log(`✅ Dashboard loaded - found: ${indicator}`);
+            onDashboard = true;
+            break;
+          }
+        }
+        
+        if (!onDashboard) {
+          await this.takeScreenshot('dashboard-not-loaded.png');
+          throw new Error('Dashboard not loaded properly');
+        }
       }
     });
   }

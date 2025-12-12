@@ -44,3 +44,9 @@ pdfs/done/
 # Temporary files
 *.tmp
 *.temp
+
+# Browser session data
+.session/
+
+pdf/*
+logs
