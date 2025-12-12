@@ -14,14 +14,11 @@ class NavigationPage {
     await this.page.waitForLoadState('networkidle');
     await this.page.waitForTimeout(300);
     
-    // Step 1: Click Trading Agreement menu to expand it
-    await this.clickTradingAgreementMenu();
+    // Step 1: Click Setup in left menu
+    await this.clickSetupInLeftMenu();
     
-    // Step 2: Click Setup submenu (this will navigate to Setup page)
-    await this.clickSetupSubmenu();
-    
-    // Step 3: Click TA Summary button on Setup page
-    await this.clickTASummary();
+    // Step 2: Click Summary in Setup submenu
+    await this.clickSummaryInSetupSubmenu();
     
     console.log('✅ Successfully navigated to TA Summary page');
   }
@@ -99,8 +96,7 @@ class NavigationPage {
           if (isVisible) {
             console.log(`✅ Found Setup submenu: ${selector}`);
             await element.first().click();
-            await this.page.waitForLoadState('networkidle');
-            await this.page.waitForTimeout(500);
+            await this.page.waitForTimeout(300); // Wait for Setup submenu to expand
             setupMenuFound = true;
             break;
           }
@@ -116,24 +112,22 @@ class NavigationPage {
     }
   }
 
-  async clickTASummary() {
-    console.log('🔍 Looking for TA Summary button...');
+  async clickSetupInLeftMenu() {
+    console.log('🔍 Looking for Setup in left menu...');
     
-    // Wait for Setup page to load completely
+    // Wait for menu to be ready
     await this.page.waitForTimeout(300);
     
-    // TA Summary should be visible in Transaction Setup section - click directly
-    const taSummarySelectors = [
-      // From the screenshot, TA Summary is in Transaction Setup section
-      'text=TA Summary',
-      'a:has-text("TA Summary")',
-      '.mx-link:has-text("TA Summary")',
-      'a[data-button-id*="actionButton1"]:has-text("TA Summary")',
-      '.mx-name-actionButton1'
+    // Look for Setup in the left navigation menu
+    const setupSelectors = [
+      'text=Setup',
+      'a:has-text("Setup")',
+      '.mx-link:has-text("Setup")',
+      '[title*="Setup"]'
     ];
     
-    let taSummaryFound = false;
-    for (const selector of taSummarySelectors) {
+    let setupFound = false;
+    for (const selector of setupSelectors) {
       try {
         console.log(`🔍 Trying selector: ${selector}`);
         const element = this.page.locator(selector);
@@ -145,13 +139,66 @@ class NavigationPage {
           console.log(`   Element visible: ${isVisible}`);
           
           if (isVisible) {
-            console.log(`✅ Found TA Summary button: ${selector}`);
+            console.log(`✅ Found Setup in left menu: ${selector}`);
             
-            // Click directly - should work since we're on the right page
+            // Click Setup to expand submenu
             await element.first().click();
-            console.log('🔄 TA Summary button clicked');
+            console.log('🔄 Setup clicked');
+            await this.page.waitForTimeout(300);
             
-            // Wait for navigation
+            setupFound = true;
+            break;
+          }
+        }
+      } catch (error) {
+        console.log(`   Error: ${error.message}`);
+        continue;
+      }
+    }
+    
+    if (!setupFound) {
+      console.log('❌ Setup in left menu not found, taking screenshot...');
+      await this.page.screenshot({ path: 'logs/setup-left-menu-not-found.png' });
+      throw new Error('Setup in left menu not found');
+    }
+  }
+
+  async clickSummaryInSetupSubmenu() {
+    console.log('🔍 Looking for Summary in Setup submenu...');
+    
+    // Wait for Setup submenu to expand
+    await this.page.waitForTimeout(300);
+    
+    // Look for Summary in the expanded Setup submenu
+    const summarySelectors = [
+      'text=Summary',
+      'a:has-text("Summary")',
+      '.mx-link:has-text("Summary")',
+      'text=TA Summary',
+      'a:has-text("TA Summary")',
+      '[title*="Summary"]'
+    ];
+    
+    let summaryFound = false;
+    for (const selector of summarySelectors) {
+      try {
+        console.log(`🔍 Trying selector: ${selector}`);
+        const element = this.page.locator(selector);
+        const count = await element.count();
+        console.log(`   Found ${count} elements`);
+        
+        if (count > 0) {
+          const isVisible = await element.first().isVisible();
+          console.log(`   Element visible: ${isVisible}`);
+          
+          if (isVisible) {
+            console.log(`✅ Found Summary in Setup submenu: ${selector}`);
+            
+            // Click Summary
+            await element.first().click();
+            console.log('🔄 Summary clicked');
+            
+            // Wait for navigation to TA Summary page
             await this.page.waitForLoadState('networkidle');
             await this.page.waitForTimeout(1000);
             
@@ -167,7 +214,7 @@ class NavigationPage {
               await this.page.screenshot({ path: 'logs/ta-summary-form-not-loaded.png' });
             }
             
-            taSummaryFound = true;
+            summaryFound = true;
             break;
           }
         }
@@ -177,10 +224,10 @@ class NavigationPage {
       }
     }
     
-    if (!taSummaryFound) {
-      console.log('❌ TA Summary button not found, taking screenshot...');
-      await this.page.screenshot({ path: 'logs/ta-summary-not-found.png' });
-      throw new Error('TA Summary button not found with any selector');
+    if (!summaryFound) {
+      console.log('❌ Summary in Setup submenu not found, taking screenshot...');
+      await this.page.screenshot({ path: 'logs/summary-in-setup-submenu-not-found.png' });
+      throw new Error('Summary in Setup submenu not found');
     }
   }
 }

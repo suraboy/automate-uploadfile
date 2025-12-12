@@ -116,21 +116,28 @@ class UploadPage {
           // Wait for modal to be fully loaded
           await this.page.waitForTimeout(1000);
           
+          // Debug: Take screenshot to see the popup
+          await this.page.screenshot({ path: 'logs/success-popup-debug.png' });
+          console.log('📸 Success popup screenshot saved');
+          
           const okButtonSelectors = [
-            // From HTML structure: <button class="btn btn-primary">OK</button> inside .modal-footer
-            '.modal-footer button.btn.btn-primary',
-            '.modal-footer .btn.btn-primary',
-            '.modal-footer button:has-text("OK")',
-            // Alternative modal structures
-            '.mx-dialog-footer button.btn.btn-primary',
-            '.mx-dialog-footer .btn-primary',
-            // Generic selectors
-            'button.btn.btn-primary:has-text("OK")',
-            '.btn-primary:has-text("OK")',
+            // From the screenshot - red OK button in Information popup
             'button:has-text("OK")',
-            // Fallback - any button in modal
-            '.modal button',
-            '.mx-dialog button'
+            'input[type="button"][value="OK"]',
+            'input[value="OK"]',
+            // Try different button selectors
+            '.btn:has-text("OK")',
+            'button.btn:has-text("OK")',
+            // Generic selectors for any OK button
+            'text=OK',
+            '[value="OK"]',
+            // Modal/dialog selectors
+            '.modal button:has-text("OK")',
+            '.modal-dialog button:has-text("OK")',
+            '.modal-content button:has-text("OK")',
+            // Any button that contains OK
+            'button[onclick*="OK"]',
+            'button[title*="OK"]'
           ];
           
           let okClicked = false;
@@ -141,47 +148,64 @@ class UploadPage {
               console.log(`   Trying OK selector: ${okSelector} - found ${count}`);
               
               if (count > 0) {
-                // Wait for button to be visible and enabled
-                await this.page.waitForTimeout(300);
-                
-                const isVisible = await okButton.first().isVisible();
-                const isEnabled = await okButton.first().isEnabled();
-                console.log(`   Button visible: ${isVisible}, enabled: ${isEnabled}`);
-                
-                if (isVisible && isEnabled) {
-                  console.log(`✅ Found OK button: ${okSelector}`);
-                  
-                  // Try clicking with different methods
+                // Check each element to find the right OK button
+                for (let i = 0; i < count; i++) {
                   try {
-                    // Method 1: Wait for button to be clickable and click
-                    await okButton.first().waitFor({ state: 'visible' });
-                    await okButton.first().click({ timeout: 5000 });
-                    console.log('✅ OK button clicked successfully');
-                    okClicked = true;
-                  } catch (clickError) {
-                    console.log('⚠️ Regular click failed, trying force click...');
+                    const element = okButton.nth(i);
+                    const isVisible = await element.isVisible();
+                    const isEnabled = await element.isEnabled();
                     
-                    try {
-                      await okButton.first().click({ force: true, timeout: 5000 });
-                      console.log('✅ OK button force clicked');
-                      okClicked = true;
-                    } catch (forceError) {
-                      console.log('⚠️ Force click failed, trying JavaScript click...');
+                    if (isVisible && isEnabled) {
+                      // Get button details for debugging
+                      const text = await element.textContent();
+                      const tagName = await element.evaluate(el => el.tagName);
+                      const className = await element.getAttribute('class');
+                      const onclick = await element.getAttribute('onclick');
                       
-                      try {
-                        await okButton.first().evaluate(el => el.click());
-                        console.log('✅ OK button clicked via JavaScript');
-                        okClicked = true;
-                      } catch (jsError) {
-                        console.log(`⚠️ All click methods failed: ${jsError.message}`);
+                      console.log(`   Button ${i}: ${tagName} text="${text}" class="${className}" onclick="${onclick}"`);
+                      
+                      if (text && text.trim().toUpperCase() === 'OK') {
+                        console.log(`✅ Found OK button: ${okSelector} (element ${i})`);
+                        
+                        // Try multiple click methods
+                        try {
+                          // Method 1: JavaScript click
+                          await element.evaluate(el => el.click());
+                          console.log('✅ OK button clicked via JavaScript');
+                          okClicked = true;
+                          break;
+                        } catch (jsError) {
+                          console.log('⚠️ JavaScript click failed, trying force click...');
+                          
+                          try {
+                            await element.click({ force: true });
+                            console.log('✅ OK button force clicked');
+                            okClicked = true;
+                            break;
+                          } catch (forceError) {
+                            console.log('⚠️ Force click failed, trying regular click...');
+                            
+                            try {
+                              await element.click();
+                              console.log('✅ OK button clicked successfully');
+                              okClicked = true;
+                              break;
+                            } catch (clickError) {
+                              console.log(`⚠️ All click methods failed: ${clickError.message}`);
+                            }
+                          }
+                        }
                       }
                     }
+                  } catch (e) {
+                    console.log(`   Error checking element ${i}: ${e.message}`);
+                    continue;
                   }
-                  
-                  if (okClicked) {
-                    await this.page.waitForTimeout(500);
-                    break;
-                  }
+                }
+                
+                if (okClicked) {
+                  await this.page.waitForTimeout(500);
+                  break;
                 }
               }
             } catch (e) {
